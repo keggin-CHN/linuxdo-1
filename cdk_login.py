@@ -76,9 +76,10 @@ class CDKClient:
 
     def login_linuxdo(self, username, password):
         log.info("开始 LinuxDo 登录...")
-        # 先访问首页建立 session，如果 403 则切换指纹
-        r = self._get("https://linux.do/", allow_redirects=True)
-        log.info(f"LinuxDo 首页: {r.status_code}")
+        # 直接获取 CSRF token（跳过首页，避免 Cloudflare 拦截）
+        # 如果 403 则切换指纹重试
+        r = self._get("https://linux.do/session/csrf.json")
+        log.info(f"LinuxDo CSRF 请求: {r.status_code}")
         if r.status_code == 403:
             for alt in IMPERSONATE_TARGETS:
                 if alt == self.impersonate:
@@ -86,16 +87,14 @@ class CDKClient:
                 log.info(f"切换指纹: {alt}")
                 self._switch_impersonate(alt)
                 delay(2, 4)
-                r = self._get("https://linux.do/", allow_redirects=True)
-                log.info(f"LinuxDo 首页 ({alt}): {r.status_code}")
+                r = self._get("https://linux.do/session/csrf.json")
+                log.info(f"LinuxDo CSRF ({alt}): {r.status_code}")
                 if r.status_code == 200:
                     break
             if r.status_code != 200:
-                log.error(f"所有指纹均无法访问 linux.do")
+                log.error(f"所有指纹均无法获取 LinuxDo CSRF")
                 return False
-        delay(1, 2)
-        r = self._get("https://linux.do/session/csrf.json")
-        if r.status_code != 200:
+        elif r.status_code != 200:
             log.error(f"获取 LinuxDo CSRF 失败: {r.status_code}")
             return False
         try:
