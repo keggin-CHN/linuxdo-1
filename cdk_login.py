@@ -154,11 +154,6 @@ class CDKClient:
 
     def follow_oauth_flow(self, authorize_url):
         log.info("跟随 OAuth 授权流程...")
-        # 先访问 connect.linux.do 首页预热 Cloudflare session
-        log.info("预热 connect.linux.do...")
-        r = self._get("https://connect.linux.do/", allow_redirects=True)
-        log.info(f"connect.linux.do 首页: {r.status_code}")
-        delay(1, 2)
         r = self._get(authorize_url, allow_redirects=False)
         r = self._follow_redirects(r, authorize_url)
         current_url = getattr(r, '_current_url', '') or str(getattr(r, 'url', '') or '')

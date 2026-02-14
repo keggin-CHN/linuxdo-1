@@ -75,7 +75,8 @@ class MuYuanClient:
         return self.session.post(url, **kw)
 
     def login_linuxdo(self, username, password):
-        r = self._get("https://linux.do/", allow_redirects=True)
+        # 直接请求 CSRF API，跳过首页避免 Cloudflare 拦截
+        r = self._get("https://linux.do/session/csrf.json")
         if r.status_code == 403:
             for alt in IMPERSONATE_TARGETS:
                 if alt == self.impersonate:
@@ -83,13 +84,9 @@ class MuYuanClient:
                 self.impersonate = alt
                 self.session = cffi_requests.Session(impersonate=alt)
                 delay(2, 4)
-                r = self._get("https://linux.do/", allow_redirects=True)
+                r = self._get("https://linux.do/session/csrf.json")
                 if r.status_code == 200:
                     break
-        if r.status_code != 200:
-            return False
-        delay(1, 2)
-        r = self._get("https://linux.do/session/csrf.json")
         if r.status_code != 200:
             return False
         csrf = r.json().get("csrf")
@@ -117,9 +114,6 @@ class MuYuanClient:
         if not data.get("success") or not data.get("data"):
             return None
         state = data["data"]
-
-        delay(1, 2)
-        self._get("https://connect.linux.do/", allow_redirects=True)
 
         authorize_url = (
             f"https://connect.linux.do/oauth2/authorize?"

@@ -36,8 +36,7 @@ class B4uClient:
         self.action_draw = None
 
     def login_linuxdo(self):
-        r = self.session.get("https://linux.do/", allow_redirects=True, **self.kw)
-        time.sleep(random.uniform(1, 2))
+        # 直接请求 CSRF API，跳过首页避免 Cloudflare 拦截
         r = self.session.get("https://linux.do/session/csrf.json", **self.kw)
         try:
             csrf = r.json().get("csrf")
@@ -183,7 +182,6 @@ class B4uClient:
     def login_tw(self):
         r = self.session.get(f"{TW_URL}/api/auth/csrf", **self.kw)
         na_csrf = r.json().get("csrfToken", "")
-        self.session.get("https://connect.linux.do/", allow_redirects=True, **self.kw)
         time.sleep(random.uniform(1, 2))
         r = self.session.post(
             f"{TW_URL}/api/auth/signin/linuxdo",
