@@ -1,0 +1,33 @@
+name: Daily Tasks
+
+on:
+  schedule:
+    # UTC+8 09:00 = UTC 01:00
+    - cron: '0 1 * * *'
+  workflow_dispatch:  # 手动触发
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run daily tasks
+        env:
+          CDK_USERNAME: ${{ secrets.CDK_USERNAME }}
+          CDK_PASSWORD: ${{ secrets.CDK_PASSWORD }}
+          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+        run: python main.py
