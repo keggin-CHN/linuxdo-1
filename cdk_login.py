@@ -7,10 +7,12 @@ import time
 import logging
 from urllib.parse import urlparse
 
+from curl_cffi import requests as cffi_requests
 from utils import load_env, get_proxy, create_session, delay
 
 BASE_URL = "https://cdk.hybgzs.com"
 SESSION_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "session.json")
+IMPERSONATE_TARGETS = ["chrome133a", "chrome136", "chrome142"]
 
 log = logging.getLogger("cdk_login")
 
@@ -62,9 +64,24 @@ class CDKClient:
 
     def login_linuxdo(self, username, password):
         log.info("开始 LinuxDo 登录...")
-        # 先访问首页建立 session
+        # 先访问首页建立 session，如果 403 则切换指纹
         r = self._get("https://linux.do/", allow_redirects=True)
         log.info(f"LinuxDo 首页: {r.status_code}")
+        if r.status_code == 403:
+            for alt in IMPERSONATE_TARGETS:
+                if alt == self.impersonate:
+                    continue
+                log.info(f"切换指纹: {alt}")
+                self.impersonate = alt
+                self.session = cffi_requests.Session(impersonate=alt)
+                delay(2, 4)
+                r = self._get("https://linux.do/", allow_redirects=True)
+                log.info(f"LinuxDo 首页 ({alt}): {r.status_code}")
+                if r.status_code == 200:
+                    break
+            if r.status_code != 200:
+                log.error(f"所有指纹均被 403")
+                return False
         delay(1, 2)
         r = self._get("https://linux.do/session/csrf.json")
         if r.status_code != 200:
@@ -106,6 +123,7 @@ class CDKClient:
     def _follow_redirects(self, r, base_url, max_redirects=15):
         redirect_count = 0
         current_base = base_url
+        current_url = base_url  # 跟踪当前实际 URL
         while r.status_code in (301, 302, 303, 307, 308) and redirect_count < max_redirects:
             location = r.headers.get("location", "")
             redirect_count += 1
@@ -113,19 +131,26 @@ class CDKClient:
                 parsed = urlparse(current_base)
                 location = f"{parsed.scheme}://{parsed.netloc}{location}"
             current_base = location
+            current_url = location
             log.info(f"  重定向 #{redirect_count}: {location[:120]}...")
             parsed_loc = urlparse(location)
             if parsed_loc.netloc == "cdk.hybgzs.com":
                 r = self._get(location, allow_redirects=True)
+                r._current_url = str(getattr(r, 'url', '') or location)
                 return r
             r = self._get(location, allow_redirects=False)
+        r._current_url = current_url
         return r
 
     def follow_oauth_flow(self, authorize_url):
         log.info("跟随 OAuth 授权流程...")
         r = self._get(authorize_url, allow_redirects=False)
         r = self._follow_redirects(r, authorize_url)
-        if r.status_code == 200 and "connect.linux.do" in (r.url or ""):
+        current_url = getattr(r, '_current_url', '') or str(getattr(r, 'url', '') or '')
+        log.info(f"OAuth 流程停在: {current_url[:120]} (status={r.status_code})")
+
+        # 检查是否在 connect.linux.do 的授权页面
+        if r.status_code == 200 and "connect.linux.do" in current_url:
             approve_match = re.search(r'href="(/oauth2/approve/[^"]+)"', r.text)
             if approve_match:
                 approve_path = approve_match.group(1)
@@ -133,8 +158,21 @@ class CDKClient:
                 log.info(f"点击授权: {approve_url}")
                 r = self._get(approve_url, allow_redirects=False)
                 r = self._follow_redirects(r, approve_url)
-        if r.status_code == 200:
-            return r
+                current_url = getattr(r, '_current_url', '') or str(getattr(r, 'url', '') or '')
+                log.info(f"授权后停在: {current_url[:120]} (status={r.status_code})")
+
+        # 如果还在 connect.linux.do 的 sso_callback 页面，检查是否有自动跳转
+        if r.status_code == 200 and "connect.linux.do" in current_url:
+            # 可能页面里有 meta refresh 或 JS 跳转
+            meta_match = re.search(r'url=([^"\'>\s]+)', r.text, re.IGNORECASE)
+            if meta_match:
+                redirect_url = meta_match.group(1)
+                if redirect_url.startswith("/"):
+                    redirect_url = f"https://connect.linux.do{redirect_url}"
+                log.info(f"Meta 跳转: {redirect_url[:120]}")
+                r = self._get(redirect_url, allow_redirects=False)
+                r = self._follow_redirects(r, redirect_url)
+
         return r
 
     def check_session(self):
