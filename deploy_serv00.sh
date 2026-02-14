@@ -39,7 +39,7 @@ fi
 # 安装依赖
 echo "📦 安装依赖..."
 "$VENV_DIR/bin/pip" install --upgrade pip -q 2>/dev/null
-"$VENV_DIR/bin/pip" install -r "$SCRIPT_DIR/requirements.txt" -q
+"$VENV_DIR/bin/pip" install -r "$SCRIPT_DIR/requirements-serv00.txt" -q
 echo "✅ 依赖安装完成"
 
 # 写入 .env 文件
