@@ -62,6 +62,18 @@ class CDKClient:
         log.error(f"OAuth 发起失败: status={r.status_code}")
         return None
 
+    def _switch_impersonate(self, target):
+        """切换浏览器指纹，保留现有 cookies"""
+        old_cookies = {}
+        jar = self.session.cookies
+        if hasattr(jar, 'items'):
+            for name, value in jar.items():
+                old_cookies[name] = value
+        self.impersonate = target
+        self.session = cffi_requests.Session(impersonate=target)
+        for name, value in old_cookies.items():
+            self.session.cookies.set(name, value)
+
     def login_linuxdo(self, username, password):
         log.info("开始 LinuxDo 登录...")
         # 先访问首页建立 session，如果 403 则切换指纹
@@ -72,15 +84,14 @@ class CDKClient:
                 if alt == self.impersonate:
                     continue
                 log.info(f"切换指纹: {alt}")
-                self.impersonate = alt
-                self.session = cffi_requests.Session(impersonate=alt)
+                self._switch_impersonate(alt)
                 delay(2, 4)
                 r = self._get("https://linux.do/", allow_redirects=True)
                 log.info(f"LinuxDo 首页 ({alt}): {r.status_code}")
                 if r.status_code == 200:
                     break
             if r.status_code != 200:
-                log.error(f"所有指纹均被 403")
+                log.error(f"所有指纹均无法访问 linux.do")
                 return False
         delay(1, 2)
         r = self._get("https://linux.do/session/csrf.json")

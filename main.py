@@ -192,26 +192,21 @@ def main():
     start_time = datetime.now(BJ_TZ)
     log.info(f"LinuxDo 每日任务开始 - {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
 
-    # Step 0: CDK 登录（前置，最多重试3次）
+    # Step 0: CDK 登录（前置）
     log.info("=" * 50)
     log.info("Step 0: CDK 登录")
     log.info("=" * 50)
     cdk_ok = False
     cdk_msg = ""
-    for cdk_attempt in range(3):
-        try:
-            cdk_msg = task_cdk_login()
-            log.info(cdk_msg)
-            cdk_ok = True
-            break
-        except Exception as e:
-            error_msg = f"CDK 登录失败 (第{cdk_attempt+1}次): {e}"
-            log.error(error_msg)
-            cdk_msg = f"❌ {error_msg}"
-            if cdk_attempt < 2:
-                time.sleep(10)
-    if not cdk_ok:
-        log.warning("CDK 登录全部失败，黑与白任务可能无法执行")
+    try:
+        cdk_msg = task_cdk_login()
+        log.info(cdk_msg)
+        cdk_ok = True
+    except Exception as e:
+        error_msg = f"CDK 登录失败: {e}"
+        log.error(error_msg)
+        cdk_msg = f"❌ {error_msg}"
+        log.warning("CDK 登录失败，黑与白任务可能无法执行")
 
     # Step 1: 依次执行所有任务，失败的记录下来
     results = {}  # name -> (成功?, 消息)
