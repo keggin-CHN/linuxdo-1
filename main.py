@@ -10,7 +10,7 @@ import sys
 import time
 import traceback
 import logging
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 
 # 确保项目根目录在 path 中
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -188,21 +188,30 @@ def run_task(name, func):
 def main():
     load_env()
 
-    start_time = datetime.now()
+    BJ_TZ = timezone(timedelta(hours=8))
+    start_time = datetime.now(BJ_TZ)
     log.info(f"LinuxDo 每日任务开始 - {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
 
-    # Step 0: CDK 登录（前置）
+    # Step 0: CDK 登录（前置，最多重试3次）
     log.info("=" * 50)
     log.info("Step 0: CDK 登录")
     log.info("=" * 50)
-    try:
-        cdk_msg = task_cdk_login()
-        log.info(cdk_msg)
-    except Exception as e:
-        error_msg = f"CDK 登录失败: {e}"
-        log.error(error_msg)
-        # CDK 登录失败不影响其他独立站点的任务，继续执行
-        cdk_msg = f"❌ {error_msg}"
+    cdk_ok = False
+    cdk_msg = ""
+    for cdk_attempt in range(3):
+        try:
+            cdk_msg = task_cdk_login()
+            log.info(cdk_msg)
+            cdk_ok = True
+            break
+        except Exception as e:
+            error_msg = f"CDK 登录失败 (第{cdk_attempt+1}次): {e}"
+            log.error(error_msg)
+            cdk_msg = f"❌ {error_msg}"
+            if cdk_attempt < 2:
+                time.sleep(10)
+    if not cdk_ok:
+        log.warning("CDK 登录全部失败，黑与白任务可能无法执行")
 
     # Step 1: 依次执行所有任务，失败的记录下来
     results = {}  # name -> (成功?, 消息)
@@ -216,12 +225,26 @@ def main():
         time.sleep(2)  # 任务间间隔
 
     # Step 2: 重试失败的任务（最多 MAX_RETRIES 次）
+    # 如果有黑与白任务失败且 CDK 登录也失败，先重试 CDK 登录
+    hyb_names = {"🎰 黑与白转盘", "🃏 黑与白卡牌", "🍾 黑与白漂流瓶"}
     retry_round = 0
     while failed_tasks and retry_round < MAX_RETRIES:
         retry_round += 1
         log.info(f"\n{'='*50}")
         log.info(f"重试第 {retry_round}/{MAX_RETRIES} 轮 - {len(failed_tasks)} 个失败任务")
         log.info(f"{'='*50}")
+
+        # 如果有黑与白任务失败且 CDK 未登录成功，先重试 CDK 登录
+        has_hyb_failed = any(n in hyb_names for n, _ in failed_tasks)
+        if has_hyb_failed and not cdk_ok:
+            log.info("重试 CDK 登录...")
+            try:
+                cdk_msg = task_cdk_login()
+                log.info(cdk_msg)
+                cdk_ok = True
+            except Exception as e:
+                log.error(f"CDK 重试登录失败: {e}")
+                time.sleep(5)
 
         still_failed = []
         for name, func in failed_tasks:
@@ -237,7 +260,7 @@ def main():
             break
 
     # Step 3: 汇总消息
-    end_time = datetime.now()
+    end_time = datetime.now(BJ_TZ)
     duration = (end_time - start_time).total_seconds()
 
     success_count = sum(1 for ok, _ in results.values() if ok)
@@ -245,7 +268,7 @@ def main():
 
     summary_lines = [
         f"📋 LinuxDo 每日任务报告",
-        f"⏰ {start_time.strftime('%Y-%m-%d %H:%M')} (耗时 {duration:.0f}s)",
+        f"⏰ {start_time.strftime('%Y-%m-%d %H:%M')} 北京时间 (耗时 {duration:.0f}s)",
         f"📊 成功 {success_count}/{len(TASKS)}" + (f"，失败 {fail_count}" if fail_count else ""),
         "",
         f"🔑 CDK: {cdk_msg}",

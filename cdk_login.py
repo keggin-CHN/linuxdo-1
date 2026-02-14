@@ -62,11 +62,19 @@ class CDKClient:
 
     def login_linuxdo(self, username, password):
         log.info("开始 LinuxDo 登录...")
+        # 先访问首页建立 session
+        r = self._get("https://linux.do/", allow_redirects=True)
+        log.info(f"LinuxDo 首页: {r.status_code}")
+        delay(1, 2)
         r = self._get("https://linux.do/session/csrf.json")
         if r.status_code != 200:
             log.error(f"获取 LinuxDo CSRF 失败: {r.status_code}")
             return False
-        csrf = r.json().get("csrf")
+        try:
+            csrf = r.json().get("csrf")
+        except Exception:
+            log.error(f"CSRF 响应非 JSON: {r.text[:200]}")
+            return False
         log.info(f"LinuxDo CSRF: {csrf[:20]}...")
         r = self._post(
             "https://linux.do/session",

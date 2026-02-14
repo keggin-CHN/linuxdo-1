@@ -39,7 +39,12 @@ class B4uClient:
         r = self.session.get("https://linux.do/", allow_redirects=True, **self.kw)
         time.sleep(random.uniform(1, 2))
         r = self.session.get("https://linux.do/session/csrf.json", **self.kw)
-        csrf = r.json().get("csrf")
+        try:
+            csrf = r.json().get("csrf")
+        except Exception:
+            raise RuntimeError(f"CSRF 响应非 JSON (HTTP {r.status_code}): {r.text[:200]}")
+        if not csrf:
+            raise RuntimeError("CSRF token 为空")
         time.sleep(random.uniform(1, 2))
         r = self.session.post(
             "https://linux.do/session",
@@ -51,7 +56,10 @@ class B4uClient:
             headers={"X-CSRF-Token": csrf, "X-Requested-With": "XMLHttpRequest"},
             **self.kw,
         )
-        data = r.json()
+        try:
+            data = r.json()
+        except Exception:
+            raise RuntimeError(f"登录响应非 JSON (HTTP {r.status_code}): {r.text[:200]}")
         user = data.get("user", {}).get("username")
         if not user:
             raise RuntimeError(f"LinuxDo 登录失败: {data.get('error', 'unknown')}")
@@ -384,6 +392,8 @@ def run():
     draw_summary = "\n".join(draw_results) if draw_results else "无"
     redeem_value_usd = redeem_total_value / 500_000 if redeem_total_value else 0
 
+    total_usd = quota / 500_000
+
     lines = [
         f"🎰 B4u | {client.username}",
         f"抽奖({remaining if isinstance(remaining, int) else 0}次):",
@@ -391,7 +401,7 @@ def run():
         "",
         f"兑换: {redeem_success}/{len(new_codes)} 成功" + (f" (+${redeem_value_usd:.2f})" if redeem_value_usd else ""),
         "",
-        f"额度: ${remaining_usd:.2f} (总${quota/500_000:.2f}, 用${used/500_000:.2f})",
+        f"💰 额度: ${total_usd:.0f}",
     ]
     msg = "\n".join(lines)
     return True, msg
