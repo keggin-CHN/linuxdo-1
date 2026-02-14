@@ -59,7 +59,7 @@ export CDK_USERNAME="zhou239289001@gmail.com"
 export CDK_PASSWORD="zhou060423rls"
 export TG_BOT_TOKEN="7483346980:AAHT4LBRiDU0H617sRQZmNUL8A6GumybMHE"
 export TG_CHAT_ID="7420206850"
-"$VENV_DIR/bin/python" main.py >> "$SCRIPT_DIR/cron.log" 2>&1
+"$VENV_DIR/bin/python" main.py 2>&1 | tee -a "$SCRIPT_DIR/cron.log"
 RUNEOF
 chmod +x "$SCRIPT_DIR/run.sh"
 echo "✅ run.sh 已创建"
