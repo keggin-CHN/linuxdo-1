@@ -7,8 +7,7 @@ import time
 import logging
 from urllib.parse import urlparse
 
-from curl_cffi import requests as cffi_requests
-from utils import load_env, get_proxy, create_session, delay
+from utils import load_env, get_proxy, create_session, delay, CompatSession
 
 BASE_URL = "https://cdk.hybgzs.com"
 SESSION_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "session.json")
@@ -70,7 +69,7 @@ class CDKClient:
             for name, value in jar.items():
                 old_cookies[name] = value
         self.impersonate = target
-        self.session = cffi_requests.Session(impersonate=target)
+        self.session = CompatSession(impersonate=target)
         for name, value in old_cookies.items():
             self.session.cookies.set(name, value)
 

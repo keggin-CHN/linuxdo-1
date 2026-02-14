@@ -9,8 +9,7 @@ import logging
 from urllib.parse import urlparse, parse_qs
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from utils import get_proxy, create_session, delay, load_env  # noqa: E402
-from curl_cffi import requests as cffi_requests  # noqa: E402
+from utils import get_proxy, create_session, delay, load_env, CompatSession  # noqa: E402
 
 BASE_URL = "https://newapi.linuxdo.edu.rs"
 SESSION_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "session.json")
@@ -82,7 +81,7 @@ class MuYuanClient:
                 if alt == self.impersonate:
                     continue
                 self.impersonate = alt
-                self.session = cffi_requests.Session(impersonate=alt)
+                self.session = CompatSession(impersonate=alt)
                 delay(2, 4)
                 r = self._get("https://linux.do/session/csrf.json")
                 if r.status_code == 200:

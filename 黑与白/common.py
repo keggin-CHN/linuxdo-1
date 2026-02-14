@@ -5,8 +5,6 @@ import sys
 import time
 import logging
 
-from curl_cffi import requests as cffi_requests
-
 # 添加父目录到 path 以导入 utils
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils import get_proxy, create_session, delay  # noqa: E402

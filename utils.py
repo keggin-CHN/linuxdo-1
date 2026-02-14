@@ -1,10 +1,8 @@
-"""共享工具模块 - 环境变量、代理、TG推送、延迟"""
+"""共享工具模块 - 环境变量、代理、TG推送、延迟、HTTP兼容层"""
 import os
 import random
 import time
 import logging
-
-from curl_cffi import requests as cffi_requests
 
 logging.basicConfig(
     level=logging.INFO,
@@ -12,7 +10,57 @@ logging.basicConfig(
     datefmt="%H:%M:%S",
 )
 
+# curl_cffi 可选，FreeBSD (serv00) 不支持，降级到 requests
+try:
+    from curl_cffi import requests as cffi_requests
+    HAS_CURL_CFFI = True
+except ImportError:
+    import requests as cffi_requests
+    HAS_CURL_CFFI = False
+    logging.getLogger("utils").info("curl_cffi 不可用，使用 requests 库")
+
 IMPERSONATE_TARGETS = ["chrome133a", "chrome136", "chrome142"]
+
+
+class CompatSession:
+    """兼容 curl_cffi 和 requests 的 Session 包装器。
+    统一 proxy 参数：外部始终传 proxy=str，内部自动适配。
+    """
+
+    def __init__(self, impersonate=None):
+        if HAS_CURL_CFFI and impersonate:
+            self._session = cffi_requests.Session(impersonate=impersonate)
+        else:
+            self._session = cffi_requests.Session()
+        self._impersonate = impersonate
+
+    @property
+    def cookies(self):
+        return self._session.cookies
+
+    @cookies.setter
+    def cookies(self, value):
+        self._session.cookies = value
+
+    def _adapt_kwargs(self, kwargs):
+        """将 curl_cffi 风格的 proxy=str 转为 requests 风格的 proxies=dict"""
+        if not HAS_CURL_CFFI:
+            proxy = kwargs.pop("proxy", None)
+            if proxy:
+                kwargs["proxies"] = {"http": proxy, "https": proxy}
+        return kwargs
+
+    def get(self, url, **kwargs):
+        return self._session.get(url, **self._adapt_kwargs(kwargs))
+
+    def post(self, url, **kwargs):
+        return self._session.post(url, **self._adapt_kwargs(kwargs))
+
+    def put(self, url, **kwargs):
+        return self._session.put(url, **self._adapt_kwargs(kwargs))
+
+    def delete(self, url, **kwargs):
+        return self._session.delete(url, **self._adapt_kwargs(kwargs))
 
 
 def get_proxy():
@@ -56,7 +104,8 @@ def send_telegram(message, parse_mode=None):
         payload = {"chat_id": chat_id, "text": message}
         if parse_mode:
             payload["parse_mode"] = parse_mode
-        cffi_requests.post(url, json=payload, proxy=proxy, timeout=15)
+        s = CompatSession()
+        s.post(url, json=payload, proxy=proxy, timeout=15)
     except Exception as e:
         logging.getLogger("utils").warning(f"Telegram 推送异常: {e}")
 
@@ -78,7 +127,7 @@ def load_env(env_path=None):
 
 
 def create_session(proxy=None):
-    """创建带随机指纹的 curl_cffi session"""
+    """创建兼容 session，curl_cffi 可用时带指纹模拟"""
     imp = random.choice(IMPERSONATE_TARGETS)
-    session = cffi_requests.Session(impersonate=imp)
+    session = CompatSession(impersonate=imp)
     return session, imp

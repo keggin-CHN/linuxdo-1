@@ -1,1 +1,2 @@
-curl_cffi>=0.7.0
+curl_cffi>=0.7.0; sys_platform != "freebsd"
+requests>=2.31.0

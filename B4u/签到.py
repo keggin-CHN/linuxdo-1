@@ -10,7 +10,6 @@ from urllib.parse import urlparse, parse_qs
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils import get_proxy, create_session, delay, load_env  # noqa: E402
-from curl_cffi import requests as cffi_requests  # noqa: E402
 
 if sys.platform == "win32":
     sys.stdout.reconfigure(encoding="utf-8")
