@@ -235,16 +235,15 @@ class CDKClient:
             return None
 
 
-def run():
-    """执行 CDK 登录，返回 (成功?, 消息)"""
-    username = os.environ.get("CDK_USERNAME")
-    password = os.environ.get("CDK_PASSWORD")
-    if not username or not password:
-        return False, "CDK_USERNAME 或 CDK_PASSWORD 未设置"
+CDK_MAX_RETRIES = 3
+CDK_RETRY_DELAYS = [10, 20, 30]  # 每次重试前等待秒数
 
-    proxy = get_proxy()
+
+def _try_login_once(username, password, proxy):
+    """单次 CDK 登录尝试，返回 (成功?, 消息)"""
     client = CDKClient(proxy=proxy)
 
+    # 检查缓存 session
     saved = client.load_session()
     if saved and saved.get("session"):
         log.info("发现已保存的 session，验证中...")
@@ -274,6 +273,37 @@ def run():
         return True, f"CDK 登录成功: {session_data['user'].get('name', '未知')}"
     else:
         return False, "CDK 登录失败 - 无法获取 session"
+
+
+def run():
+    """执行 CDK 登录（含重试），返回 (成功?, 消息)"""
+    username = os.environ.get("CDK_USERNAME")
+    password = os.environ.get("CDK_PASSWORD")
+    if not username or not password:
+        return False, "CDK_USERNAME 或 CDK_PASSWORD 未设置"
+
+    proxy = get_proxy()
+    last_msg = ""
+
+    for attempt in range(CDK_MAX_RETRIES):
+        if attempt > 0:
+            wait = CDK_RETRY_DELAYS[min(attempt - 1, len(CDK_RETRY_DELAYS) - 1)]
+            log.info(f"CDK 登录第 {attempt + 1}/{CDK_MAX_RETRIES} 次尝试，等待 {wait}s...")
+            time.sleep(wait)
+
+        try:
+            ok, msg = _try_login_once(username, password, proxy)
+            if ok:
+                if attempt > 0:
+                    msg += f" (第{attempt + 1}次尝试)"
+                return True, msg
+            last_msg = msg
+            log.warning(f"CDK 登录第 {attempt + 1} 次失败: {msg}")
+        except Exception as e:
+            last_msg = str(e)
+            log.warning(f"CDK 登录第 {attempt + 1} 次异常: {e}")
+
+    return False, f"CDK 登录失败（{CDK_MAX_RETRIES}次尝试）: {last_msg}"
 
 
 def main():
