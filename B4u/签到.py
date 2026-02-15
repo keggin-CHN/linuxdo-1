@@ -107,6 +107,7 @@ class B4uClient:
         self.action_get_remaining = None
         self.action_draw = None
 
+        # --- 识别 getRemainingDrawCount (export KX) ---
         kx_match = re.search(r'KX:function\(\)\{return\s+(\w+)\}', chunk_text)
         if kx_match:
             var_name = kx_match.group(1)
@@ -115,13 +116,21 @@ class B4uClient:
             if m:
                 self.action_get_remaining = m.group(1)
 
+        # --- 识别 draw action ---
+        # 找 excludeThankYou 调用位置，然后向前找最近的同名变量绑定
+        # chunk 有多个模块，变量名可能重复，必须找离调用点最近的那个
         et_match = re.search(r'await\s+(\w+)\(\{excludeThankYou:', chunk_text)
         if et_match:
             var_name = et_match.group(1)
+            call_pos = et_match.start()
+            # 找所有同名变量绑定，取离调用点最近（且在其之前）的
             pat = re.escape(var_name) + r'=\(0,[a-zA-Z]\.\$\)\("([a-f0-9]{40})"\)'
-            m = re.search(pat, chunk_text)
-            if m:
-                self.action_draw = m.group(1)
+            best_match = None
+            for m in re.finditer(pat, chunk_text):
+                if m.start() < call_pos:
+                    best_match = m  # 取最后一个在调用点之前的
+            if best_match:
+                self.action_draw = best_match.group(1)
 
         if not self.action_get_remaining or not self.action_draw:
             if len(all_action_ids) >= 9:
