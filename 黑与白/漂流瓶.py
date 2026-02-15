@@ -130,7 +130,7 @@ def pick_bottle(session, proxy, results):
 
 
 def run():
-    """执行漂流瓶扔瓶子任务（捡瓶子由 pick_bottle_daemon.py 独立处理），返回 (成功?, 消息)"""
+    """执行漂流瓶任务（扔瓶子），返回 (成功?, 消息)"""
     session, proxy, user = init()
     username = user.get("name", "未知")
 
@@ -158,8 +158,6 @@ def run():
         throw_bottle(session, proxy, results)
     else:
         results.append("扔瓶子: 今日已扔过，跳过")
-
-    results.append("捡瓶子: 由 pick_bottle_daemon 独立定时处理")
 
     results_text = "\n".join(results)
     msg = f"🍾 黑与白漂流瓶\n用户: {username}\n{results_text}"
