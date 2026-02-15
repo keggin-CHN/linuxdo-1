@@ -62,7 +62,7 @@ def throw_bottle(session, proxy, results):
     delay(2, 4)
     r = session.post(
         f"{BASE_URL}/api/drift-bottle/throw",
-        json={"noteContent": note, "cardId": card_id},
+        json={"noteContent": note, "cardId": card_id, "isAnonymous": True},
         proxy=proxy, timeout=15,
     )
     try:
