@@ -130,7 +130,7 @@ def pick_bottle(session, proxy, results):
 
 
 def run():
-    """执行漂流瓶任务，返回 (成功?, 消息)"""
+    """执行漂流瓶扔瓶子任务（捡瓶子由 pick_bottle_daemon.py 独立处理），返回 (成功?, 消息)"""
     session, proxy, user = init()
     username = user.get("name", "未知")
 
@@ -149,23 +149,17 @@ def run():
 
     usage = settings.get("usage", {})
     throw_remaining = usage.get("throwRemaining", 0)
-    pick_remaining = usage.get("pickRemaining", 0)
     throw_used = usage.get("throwUsed", 0)
-    pick_used = usage.get("pickUsed", 0)
-    pick_limit = settings.get("settings", {}).get("dailyPickLimit", 1)
 
     results = []
     results.append(f"扔瓶子: {throw_used}次已用, 剩余{throw_remaining}次")
-    results.append(f"捡瓶子: {pick_used}/{pick_limit}次已用, 剩余{pick_remaining}次")
-
-    if pick_remaining <= 0:
-        msg = (f"🍾 黑与白漂流瓶\n✅ 今日已完成\n用户: {username}\n" + "\n".join(results))
-        return True, msg
 
     if throw_used < 1 and throw_remaining > 0:
         throw_bottle(session, proxy, results)
+    else:
+        results.append("扔瓶子: 今日已扔过，跳过")
 
-    pick_bottle(session, proxy, results)
+    results.append("捡瓶子: 由 pick_bottle_daemon 独立定时处理")
 
     results_text = "\n".join(results)
     msg = f"🍾 黑与白漂流瓶\n用户: {username}\n{results_text}"

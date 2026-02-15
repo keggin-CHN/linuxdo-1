@@ -293,7 +293,7 @@ class B4uClient:
     def draw(self, exclude_thank_you=False):
         r = self.call_action(self.action_draw,
                              [{"excludeThankYou": exclude_thank_you}],
-                             path="/dashboard")
+                             path="/luckydraw")
         return self.parse_action_response(r.text)
 
     def redeem_code(self, code):
