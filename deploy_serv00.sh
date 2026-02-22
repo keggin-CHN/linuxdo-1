@@ -69,30 +69,35 @@ if [ -z "$PYTHON" ]; then
 fi
 echo "✅ Python: $PYTHON ($($PYTHON --version))"
 
-# 创建虚拟环境
-if [ ! -d "$VENV_DIR" ]; then
+# 创建/修复虚拟环境（目录存在但损坏时自动重建）
+if [ ! -x "$VENV_DIR/bin/python" ] && [ ! -x "$VENV_DIR/bin/python3" ]; then
     echo "📦 创建虚拟环境..."
+    rm -rf "$VENV_DIR"
     $PYTHON -m venv "$VENV_DIR"
 fi
 
 # 安装依赖（显示错误，避免静默退出）
 echo "📦 安装依赖..."
-if [ ! -x "$VENV_DIR/bin/python" ]; then
-    echo "❌ 虚拟环境 Python 不存在: $VENV_DIR/bin/python"
+if [ -x "$VENV_DIR/bin/python" ]; then
+    VENV_PY="$VENV_DIR/bin/python"
+elif [ -x "$VENV_DIR/bin/python3" ]; then
+    VENV_PY="$VENV_DIR/bin/python3"
+else
+    echo "❌ 虚拟环境 Python 不存在: $VENV_DIR/bin/python 或 $VENV_DIR/bin/python3"
     exit 1
 fi
 
 # 某些环境 venv 可能没有 pip，先尝试补齐
-"$VENV_DIR/bin/python" -m ensurepip --upgrade >/dev/null 2>&1 || true
+"$VENV_PY" -m ensurepip --upgrade >/dev/null 2>&1 || true
 
 # 使用 python -m pip 更稳健，并保留输出便于排错
-"$VENV_DIR/bin/python" -m pip install --upgrade pip
+"$VENV_PY" -m pip install --upgrade pip
 
 REQ_FILE="$SCRIPT_DIR/requirements-serv00.txt"
 if [ ! -f "$REQ_FILE" ]; then
     REQ_FILE="$SCRIPT_DIR/requirements.txt"
 fi
-"$VENV_DIR/bin/python" -m pip install -r "$REQ_FILE"
+"$VENV_PY" -m pip install -r "$REQ_FILE"
 echo "✅ 依赖安装完成"
 
 # 写入 .env 文件
@@ -112,7 +117,7 @@ export CDK_USERNAME="zhou239289001@gmail.com"
 export CDK_PASSWORD="zhou060423rls"
 export TG_BOT_TOKEN="7483346980:AAHT4LBRiDU0H617sRQZmNUL8A6GumybMHE"
 export TG_CHAT_ID="7420206850"
-"$VENV_DIR/bin/python" main.py 2>&1 | tee -a "$SCRIPT_DIR/cron.log"
+"$VENV_PY" main.py 2>&1 | tee -a "$SCRIPT_DIR/cron.log"
 RUNEOF
 chmod +x "$SCRIPT_DIR/run.sh"
 echo "✅ run.sh 已创建"
@@ -126,7 +131,7 @@ echo "✅ Cron 已设置: 每天 UTC 01:00 (北京时间 09:00)"
 echo ""
 echo "🧪 测试环境..."
 cd "$SCRIPT_DIR"
-"$VENV_DIR/bin/python" -c "from utils import load_env; load_env(); print('✅ 环境变量加载成功')"
+"$VENV_PY" -c "from utils import load_env; load_env(); print('✅ 环境变量加载成功')"
 
 echo ""
 echo "=== 部署完成 ==="
