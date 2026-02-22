@@ -75,10 +75,24 @@ if [ ! -d "$VENV_DIR" ]; then
     $PYTHON -m venv "$VENV_DIR"
 fi
 
-# 安装依赖
+# 安装依赖（显示错误，避免静默退出）
 echo "📦 安装依赖..."
-"$VENV_DIR/bin/pip" install --upgrade pip -q 2>/dev/null
-"$VENV_DIR/bin/pip" install -r "$SCRIPT_DIR/requirements-serv00.txt" -q
+if [ ! -x "$VENV_DIR/bin/python" ]; then
+    echo "❌ 虚拟环境 Python 不存在: $VENV_DIR/bin/python"
+    exit 1
+fi
+
+# 某些环境 venv 可能没有 pip，先尝试补齐
+"$VENV_DIR/bin/python" -m ensurepip --upgrade >/dev/null 2>&1 || true
+
+# 使用 python -m pip 更稳健，并保留输出便于排错
+"$VENV_DIR/bin/python" -m pip install --upgrade pip
+
+REQ_FILE="$SCRIPT_DIR/requirements-serv00.txt"
+if [ ! -f "$REQ_FILE" ]; then
+    REQ_FILE="$SCRIPT_DIR/requirements.txt"
+fi
+"$VENV_DIR/bin/python" -m pip install -r "$REQ_FILE"
 echo "✅ 依赖安装完成"
 
 # 写入 .env 文件
