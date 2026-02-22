@@ -15,6 +15,45 @@ export TG_CHAT_ID="7420206850"
 
 echo "=== LinuxDo 每日任务 - Serv00 部署 ==="
 
+# ===== 清理历史实例（确保服务器只有一个 linuxdo main.py 任务）=====
+echo "🧹 清理历史 linuxdo 实例..."
+
+# 1) 清理旧进程：run.sh / main.py
+if command -v pgrep &>/dev/null; then
+    OLD_PIDS="$(pgrep -u "$USER" -f 'linuxdo/.*/run\.sh|linuxdo/.*/main\.py|linuxdo/run\.sh|linuxdo/main\.py' || true)"
+else
+    OLD_PIDS="$(ps -u "$USER" -o pid= -o args= | awk '/linuxdo\/.*(run\.sh|main\.py)|linuxdo\/(run\.sh|main\.py)/{print $1}' || true)"
+fi
+
+if [ -n "$OLD_PIDS" ]; then
+    echo "发现旧进程: $OLD_PIDS"
+    echo "$OLD_PIDS" | xargs -r kill || true
+    sleep 2
+
+    if command -v pgrep &>/dev/null; then
+        LEFT_PIDS="$(pgrep -u "$USER" -f 'linuxdo/.*/run\.sh|linuxdo/.*/main\.py|linuxdo/run\.sh|linuxdo/main\.py' || true)"
+    else
+        LEFT_PIDS="$(ps -u "$USER" -o pid= -o args= | awk '/linuxdo\/.*(run\.sh|main\.py)|linuxdo\/(run\.sh|main\.py)/{print $1}' || true)"
+    fi
+
+    if [ -n "$LEFT_PIDS" ]; then
+        echo "强制结束残留进程: $LEFT_PIDS"
+        echo "$LEFT_PIDS" | xargs -r kill -9 || true
+    fi
+    echo "✅ 旧进程清理完成"
+else
+    echo "ℹ️ 未发现旧进程"
+fi
+
+# 2) 清理旧 cron：所有指向 linuxdo 的 run.sh / main.py 任务
+TMP_CRON="$(mktemp)"
+(crontab -l 2>/dev/null || true) \
+    | grep -Ev 'linuxdo/.*/run\.sh|linuxdo/.*/main\.py|linuxdo/run\.sh|linuxdo/main\.py' \
+    > "$TMP_CRON" || true
+crontab "$TMP_CRON"
+rm -f "$TMP_CRON"
+echo "✅ 旧 cron 任务清理完成"
+
 # 检查 Python3
 PYTHON=""
 for p in python3.11 python3.10 python3.9 python3; do
@@ -64,9 +103,9 @@ RUNEOF
 chmod +x "$SCRIPT_DIR/run.sh"
 echo "✅ run.sh 已创建"
 
-# 设置 cron
+# 设置 cron（仅保留一条当前项目任务）
 CRON_CMD="0 1 * * * $SCRIPT_DIR/run.sh"
-(crontab -l 2>/dev/null | grep -v "run.sh"; echo "$CRON_CMD") | crontab -
+( (crontab -l 2>/dev/null || true); echo "$CRON_CMD" ) | awk 'NF && !seen[$0]++' | crontab -
 echo "✅ Cron 已设置: 每天 UTC 01:00 (北京时间 09:00)"
 
 # 测试
