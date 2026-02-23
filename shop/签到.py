@@ -9,7 +9,7 @@ import logging
 from urllib.parse import urlparse, parse_qsl, urlencode, urlunparse
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from utils import get_proxy, create_session, delay, load_env, CompatSession  # noqa: E402
+from utils import create_session, delay, load_env, CompatSession  # noqa: E402
 
 BASE_URL = "https://shop.chatgpt.org.uk"
 EXTRA_SITES = [
@@ -27,10 +27,10 @@ IMPERSONATE_TARGETS = ["chrome133a", "chrome136", "chrome142"]
 HARDCODED_CDK_USERNAME = "zhou239289001@gmail.com"
 HARDCODED_CDK_PASSWORD = "zhou060423rls"
 
-# 按用户要求：使用 README 里的 TG 配置 + 本地 10808 代理测试
+# 按用户要求：使用 README 里的 TG 配置；Shop 默认直连（不走本地 10808 代理）
 HARDCODED_TG_BOT_TOKEN = "7483346980:AAHT4LBRiDU0H617sRQZmNUL8A6GumybMHE"
 HARDCODED_TG_CHAT_ID = "7420206850"
-HARDCODED_PROXY = "http://127.0.0.1:10808"
+HARDCODED_PROXY = ""
 
 # 可选：写死 LinuxDo 已登录 Cookie（用于“跳过账号密码登录”）
 # 形如: "_forum_session=xxx; __cf_bm=xxx"
@@ -864,7 +864,8 @@ def run(send_tg=None):
     """执行多站点签到，返回 (整体成功?, 汇总消息)"""
     username = HARDCODED_CDK_USERNAME
     password = HARDCODED_CDK_PASSWORD
-    proxy = HARDCODED_PROXY or get_proxy()
+    # 默认直连；仅在显式设置 SHOP_PROXY（或代码里 HARDCODED_PROXY）时才走代理
+    proxy = (os.environ.get("SHOP_PROXY", "").strip() or HARDCODED_PROXY.strip() or None)
 
     linuxdo_cookie = (os.environ.get("LINUXDO_COOKIE", "").strip() or HARDCODED_LINUXDO_COOKIE.strip())
     if not linuxdo_cookie and username and password:
