@@ -647,9 +647,32 @@ class ShopClient:
         t = re.sub(r"\s+", " ", t).strip()
         return t
 
+    def _is_noise_product_name(self, name):
+        n = (name or "").strip().lower()
+        if len(n) < 2:
+            return True
+        noise_words = [
+            "签到", "登录", "shop", "search", "profile", "loading",
+            "__next", "undefined", "null"
+        ]
+        return any(w in n for w in noise_words)
+
+    def _extract_price_text(self, text):
+        if not text:
+            return ""
+        for pat in [
+            r'"(?:price|credits|points|cost|amount)"\s*:\s*"?([0-9]+(?:\.[0-9]+)?)"?',
+            r'(?:price|credits|points|积分|价格|售价|cost|amount)\s*["\':： ]{0,10}([0-9]+(?:\.[0-9]+)?)',
+            r'([0-9]+(?:\.[0-9]+)?)\s*(?:Credits|积分|points?)',
+        ]:
+            m = re.search(pat, text, re.I | re.S)
+            if m:
+                return m.group(1)
+        return ""
+
     def _try_add_product(self, out, seen, name, price=""):
         name = self._strip_html(name or "")
-        if not name:
+        if not name or self._is_noise_product_name(name):
             return
 
         key = name.lower()
@@ -657,60 +680,146 @@ class ShopClient:
             return
         seen.add(key)
 
-        price_text = ""
-        if price is not None:
-            m = re.search(r"([0-9]+(?:\.[0-9]+)?)", str(price))
-            if m:
-                price_text = m.group(1)
-
+        price_text = self._extract_price_text(str(price) if price is not None else "")
         out.append({"name": name, "price": price_text})
 
+    def _collect_products_from_json(self, node, out, seen, limit):
+        if len(out) >= limit:
+            return
+
+        if isinstance(node, dict):
+            name = (
+                node.get("name")
+                or node.get("title")
+                or node.get("productName")
+                or node.get("goodsName")
+            )
+            price = (
+                node.get("price")
+                or node.get("credits")
+                or node.get("points")
+                or node.get("cost")
+                or node.get("amount")
+            )
+
+            offers = node.get("offers")
+            if not price and isinstance(offers, dict):
+                price = offers.get("price") or offers.get("amount")
+
+            if name:
+                self._try_add_product(out, seen, str(name), price)
+
+            for v in node.values():
+                self._collect_products_from_json(v, out, seen, limit)
+                if len(out) >= limit:
+                    return
+
+        elif isinstance(node, list):
+            for item in node:
+                self._collect_products_from_json(item, out, seen, limit)
+                if len(out) >= limit:
+                    return
+
+    def _extract_products_from_text(self, text, out, seen, limit):
+        if not text or len(out) >= limit:
+            return
+
+        candidates = [text]
+        if '\\"' in text:
+            candidates.append(text.replace('\\"', '"'))
+        if "\\u" in text:
+            try:
+                candidates.append(bytes(text, "utf-8").decode("unicode_escape"))
+            except Exception:
+                pass
+
+        for src in candidates:
+            # 1) name/title + price 紧邻
+            for m in re.finditer(
+                r'"(?:name|title|productName|goodsName)"\s*:\s*"([^"]{2,180})"(.{0,260}?)"(?:price|credits|points|cost|amount)"\s*:\s*"?([0-9]+(?:\.[0-9]+)?)"?',
+                src,
+                re.I | re.S,
+            ):
+                self._try_add_product(out, seen, m.group(1), m.group(3))
+                if len(out) >= limit:
+                    return
+
+            # 2) buy 链接卡片
+            for block in re.findall(r'<a[^>]+href=["\']/buy/[^"\']+["\'][^>]*>.*?</a>', src, re.I | re.S):
+                m_name = re.search(r'<h[1-6][^>]*>(.*?)</h[1-6]>', block, re.I | re.S)
+                if not m_name:
+                    m_name = re.search(r'>([^<>]{2,80})<', block)
+                if not m_name:
+                    continue
+                self._try_add_product(out, seen, m_name.group(1), self._extract_price_text(block))
+                if len(out) >= limit:
+                    return
+
+            # 3) name-only + 邻域 price
+            for m in re.finditer(r'"(?:name|title|productName|goodsName)"\s*:\s*"([^"]{2,180})"', src, re.I):
+                name = m.group(1)
+                nearby = src[m.end(): m.end() + 220]
+                self._try_add_product(out, seen, name, self._extract_price_text(nearby))
+                if len(out) >= limit:
+                    return
+
     def get_sale_products(self, limit=8):
-        pages = [f"{self.base_url}/", f"{self.base_url}/search"]
+        pages = [
+            f"{self.base_url}/",
+            f"{self.base_url}/search",
+            f"{self.base_url}/market",
+            f"{self.base_url}/buy",
+        ]
         out = []
         seen = set()
 
+        # A. 页面抓取（HTML / RSC 文本）
         for page in pages:
             r = self._get(page, allow_redirects=True)
             if r.status_code != 200:
                 continue
 
             html = r.text or ""
+            self._extract_products_from_text(html, out, seen, limit)
+            if len(out) >= limit:
+                return out
 
-            # 优先从页面内嵌 JSON 抓 name+price
-            for name, price in re.findall(r'"name":"([^"]{1,160})".{0,260}?"price":"?([0-9]+(?:\.[0-9]+)?)"?', html, re.I | re.S):
-                self._try_add_product(out, seen, name.replace('\\"', '"'), price)
-                if len(out) >= limit:
-                    return out
-
-            # 再从卡片块抓取（买卡链接 + 标题 + 临近价格）
-            for block in re.findall(r'<a[^>]+href="/buy/[^"]+"[^>]*>.*?</a>', html, re.I | re.S):
-                m_name = re.search(r'<h3[^>]*>(.*?)</h3>', block, re.I | re.S)
-                if not m_name:
+            # 进一步解析内嵌 script（很多站点把商品塞在 script JSON/RSC 中）
+            for script_text in re.findall(r"<script[^>]*>(.*?)</script>", html, re.I | re.S):
+                if not script_text:
                     continue
-
-                price_match = None
-                for pat in [
-                    r'([0-9]+(?:\.[0-9]+)?)\s*</span>\s*<span[^>]*>\s*(?:Credits|积分)',
-                    r'([0-9]+(?:\.[0-9]+)?)\s*(?:Credits|积分)',
-                    r'"price":"?([0-9]+(?:\.[0-9]+)?)"?',
-                ]:
-                    price_match = re.search(pat, block, re.I | re.S)
-                    if price_match:
-                        break
-
-                self._try_add_product(out, seen, m_name.group(1), price_match.group(1) if price_match else "")
+                self._extract_products_from_text(script_text, out, seen, limit)
                 if len(out) >= limit:
                     return out
 
-            # 最后兜底：仅名称
-            for m in re.findall(r'"name":"([^"]{1,120})"', html, re.I):
-                name = self._strip_html(m.replace('\\"', '"'))
-                if any(x in name.lower() for x in ["签到", "登录", "shop", "search"]):
-                    continue
-                self._try_add_product(out, seen, name, "")
-                if len(out) >= limit:
-                    return out
+        # B. API 兜底（不同克隆站命名可能不同）
+        api_candidates = [
+            "/api/products",
+            "/api/products/list",
+            "/api/shop/products",
+            "/api/store/products",
+            "/api/search",
+            "/api/search?query=",
+        ]
+        for ep in api_candidates:
+            r = self._get(f"{self.base_url}{ep}", allow_redirects=True)
+            if r.status_code != 200:
+                continue
+
+            body = r.text or ""
+            ctype = (r.headers.get("content-type", "") if getattr(r, "headers", None) else "").lower()
+
+            if "json" in ctype or body.strip().startswith("{") or body.strip().startswith("["):
+                try:
+                    data = r.json()
+                    self._collect_products_from_json(data, out, seen, limit)
+                except Exception:
+                    self._extract_products_from_text(body, out, seen, limit)
+            else:
+                self._extract_products_from_text(body, out, seen, limit)
+
+            if len(out) >= limit:
+                return out
 
         return out
 
