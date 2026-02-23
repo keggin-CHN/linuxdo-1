@@ -1,7 +1,7 @@
 """
 LinuxDo 每日任务主运行器
 - 先运行 CDK 登录拿到认证
-- 依次执行: 薄荷 → 测试1 → 慕鸢 → NodeLoc → B4U → 黑与白(转盘/卡牌/漂流瓶)
+- 依次执行: 薄荷 → 测试1 → 慕鸢 → Shop(多站) → NodeLoc → 黑与白(转盘/卡牌/漂流瓶)
 - 任何任务出错则跳过，全部结束后重试失败任务（最多5次）
 - 最后汇总推送到 Telegram
 """
@@ -89,15 +89,16 @@ def task_muyuan():
         os.chdir(saved_dir)
 
 
-def task_nodeloc():
-    """NodeLoc 签到"""
+def task_shop():
+    """Shop 签到"""
     saved_dir = os.getcwd()
-    os.chdir(os.path.join(ROOT_DIR, "nodeloc"))
+    os.chdir(os.path.join(ROOT_DIR, "shop"))
     try:
+        sys.path.insert(0, os.path.join(ROOT_DIR, "shop"))
         import importlib
-        mod = importlib.import_module("nodeloc.签到")
+        mod = importlib.import_module("签到")
         importlib.reload(mod)
-        ok, msg = mod.run()
+        ok, msg = mod.run(send_tg=send_telegram)
         if not ok:
             raise RuntimeError(msg)
         return msg
@@ -105,14 +106,13 @@ def task_nodeloc():
         os.chdir(saved_dir)
 
 
-def task_b4u():
-    """B4u 抽奖+兑换"""
+def task_nodeloc():
+    """NodeLoc 签到"""
     saved_dir = os.getcwd()
-    os.chdir(os.path.join(ROOT_DIR, "B4u"))
+    os.chdir(os.path.join(ROOT_DIR, "nodeloc"))
     try:
-        sys.path.insert(0, os.path.join(ROOT_DIR, "B4u"))
         import importlib
-        mod = importlib.import_module("签到")
+        mod = importlib.import_module("nodeloc.签到")
         importlib.reload(mod)
         ok, msg = mod.run()
         if not ok:
@@ -178,8 +178,8 @@ TASKS = [
     ("🌿 薄荷", task_bohe),
     ("🧪 测试1", task_test1),
     ("🕊️ 慕鸢", task_muyuan),
+    ("🛍️ Shop", task_shop),
     ("🛰️ NodeLoc", task_nodeloc),
-    ("🎰 B4u", task_b4u),
     ("🎰 黑与白转盘", task_hyb_wheel),
     ("🃏 黑与白卡牌", task_hyb_cards),
     ("🍾 黑与白漂流瓶", task_hyb_bottle),

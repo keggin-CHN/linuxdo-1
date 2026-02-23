@@ -19,3 +19,10 @@ EOF
 chmod +x start.sh stop.sh
 bash start.sh
 ```
+
+```text
+说明:
+- 每日任务统一由 main.py 调度执行
+- Shop 已接入多站点签到，并按“每站执行后立即推送 TG”
+- B4u 任务已从主流程移除
+```
