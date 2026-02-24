@@ -4,7 +4,7 @@
 # ============================================
 # 功能:
 #   1. 自动创建 venv + 安装依赖
-#   2. 设置 cron: 每天 9:00 北京时间运行 main.py
+#   2. 设置 cron: 每天 01:00（系统时区）触发，随机延迟后在 01:00-09:00 执行一次 main.py
 #   3. main.py 内已包含 Shop 多站点签到（逐站 Telegram 推送）
 # ============================================
 
@@ -47,15 +47,15 @@ log "安装/更新依赖..."
 "$VENV_DIR/bin/pip" install -q -r "$SCRIPT_DIR/requirements.txt"
 log "依赖安装完成"
 
-# ---------- 设置 cron (每天 01:00 UTC = 09:00 北京时间) ----------
-CRON_CMD="0 1 * * * cd $SCRIPT_DIR && $PYTHON main.py >> $LOG_DIR/main.log 2>&1"
+# ---------- 设置 cron (按系统时区每天 01:00 仅触发一次，再随机延迟到 01:00-09:00 内执行一次) ----------
+CRON_CMD="0 1 * * * cd $SCRIPT_DIR && DELAY=\$($PYTHON -c 'import random; print(random.randint(0, 8*3600))'); TARGET=\$(date -d \"+\$DELAY seconds\" '+%F %T %Z'); echo \"[\$(date '+%F %T %Z')] 随机延迟 \$DELAY 秒，计划执行时间 \$TARGET\" >> $LOG_DIR/main.log; sleep \$DELAY; $PYTHON main.py >> $LOG_DIR/main.log 2>&1"
 CRON_TAG="# linuxdo-daily-main"
 
 # 先移除旧的同标签 cron
 (crontab -l 2>/dev/null | grep -v "$CRON_TAG") | crontab - 2>/dev/null || true
 # 添加新 cron
 (crontab -l 2>/dev/null; echo "$CRON_CMD $CRON_TAG") | crontab -
-log "Cron 已设置: 每天 09:00 (北京时间) 运行 main.py"
+log "Cron 已设置: 每天 01:00（系统时区）仅触发一次，并在 01:00-09:00 随机执行一次 main.py"
 echo "    日志: $LOG_DIR/main.log"
 
 # ---------- 完成 ----------
@@ -64,7 +64,7 @@ echo "=========================================="
 echo -e " ${GREEN}部署完成！${NC}"
 echo "=========================================="
 echo ""
-echo "  定时任务:  每天 09:00 (北京) 自动签到"
+echo "  定时任务:  每天 01:00（系统时区）仅触发一次，随后在 01:00-09:00 随机执行一次"
 echo "  查看日志:  tail -f $LOG_DIR/main.log"
 echo ""
 read -p "  是否立即运行一次签到? [y/N] " -n 1 -r

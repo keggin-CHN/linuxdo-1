@@ -2,8 +2,8 @@ name: Daily Tasks
 
 on:
   schedule:
-    # UTC+8 09:00 = UTC 01:00
-    - cron: '0 1 * * *'
+    # 北京时间 01:00-09:00（UTC 17:00-01:00）每小时触发一次；再由步骤内逻辑随机选择当天执行小时
+    - cron: '7 17-23,0-1 * * *'
   workflow_dispatch:  # 手动触发
 
 jobs:
@@ -24,10 +24,44 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Decide random hour for today (Asia/Shanghai 01-09)
+        shell: bash
+        run: |
+          python - <<'PY' >> "$GITHUB_ENV"
+          from datetime import datetime, timezone, timedelta
+          import hashlib
+
+          now_utc = datetime.now(timezone.utc)
+          now_bj = now_utc + timedelta(hours=8)
+
+          # 以“北京时间日期”为种子，生成当天 1~9 点中的一个目标小时（确定性伪随机）
+          day_key = now_bj.strftime("%Y-%m-%d")
+          target_hour = int(hashlib.sha256(day_key.encode()).hexdigest()[:8], 16) % 9 + 1
+
+          should_run = "1" if now_bj.hour == target_hour else "0"
+
+          print(f"SHOULD_RUN={should_run}")
+          print(f"TARGET_HOUR_BJ={target_hour:02d}:00")
+          print(f"NOW_BJ={now_bj.strftime('%Y-%m-%d %H:%M:%S')}")
+          print(f"NOW_UTC={now_utc.strftime('%Y-%m-%d %H:%M:%S')}")
+          PY
+
+      - name: Show schedule decision
+        run: |
+          echo "NOW_UTC=${{ env.NOW_UTC }}"
+          echo "NOW_BJ=${{ env.NOW_BJ }}"
+          echo "TARGET_HOUR_BJ=${{ env.TARGET_HOUR_BJ }}"
+          echo "SHOULD_RUN=${{ env.SHOULD_RUN }}"
+
       - name: Run daily tasks
+        if: github.event_name == 'workflow_dispatch' || env.SHOULD_RUN == '1'
         env:
           CDK_USERNAME: ${{ secrets.CDK_USERNAME }}
           CDK_PASSWORD: ${{ secrets.CDK_PASSWORD }}
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
         run: python main.py
+
+      - name: Skip this hour
+        if: github.event_name != 'workflow_dispatch' && env.SHOULD_RUN != '1'
+        run: echo "Skip this hour. Today's selected Beijing time is ${{ env.TARGET_HOUR_BJ }}."
