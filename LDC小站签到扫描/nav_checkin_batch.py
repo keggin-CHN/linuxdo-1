@@ -26,7 +26,7 @@ DEFAULT_ACTION_CHECKIN = "009e211ee575ae422b7380507880ef4c73fb4f634a"
 
 HARDCODED_CDK_USERNAME = "zhou239289001@gmail.com"
 HARDCODED_CDK_PASSWORD = "zhou060423rls"
-HARDCODED_PROXY = "http://127.0.0.1:10808"
+HARDCODED_PROXY = ""
 
 DEFAULT_SITES_FILE = os.path.join(ROOT_DIR, "nav_checkin_sites.txt")
 DEFAULT_SUCCESS_FILE = os.path.join(ROOT_DIR, "nav_checkin_success_sites.txt")
@@ -699,7 +699,7 @@ def main():
 
     username = os.environ.get("CDK_USERNAME", "").strip() or HARDCODED_CDK_USERNAME
     password = os.environ.get("CDK_PASSWORD", "").strip() or HARDCODED_CDK_PASSWORD
-    proxy = os.environ.get("CDK_PROXY", "").strip() or HARDCODED_PROXY or get_proxy()
+    proxy = None
 
     sites_file = os.environ.get("NAV_CHECKIN_SITES_FILE", DEFAULT_SITES_FILE)
     success_file = os.environ.get("NAV_CHECKIN_SUCCESS_FILE", DEFAULT_SUCCESS_FILE)

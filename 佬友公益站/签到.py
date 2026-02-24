@@ -5,7 +5,7 @@ Freestyle(new-api) 自动签到脚本（协议级）
 目标站点: https://api.freestyle.cc.cd/console/personal
 
 特性：
-1) 全流程默认走本地代理 10808
+1) 默认直连（不使用代理）
 2) 支持两种登录模式：
    - account: 站点账号密码登录 (/api/user/login)
    - linuxdo: 通过 LinuxDo OAuth 回调 (/api/oauth/state -> connect.linux.do -> /api/oauth/linuxdo)
@@ -39,10 +39,10 @@ HARDCODED_FREESTYLE_USERNAME = ""
 HARDCODED_FREESTYLE_PASSWORD = ""
 HARDCODED_TG_BOT_TOKEN = "7483346980:AAHT4LBRiDU0H617sRQZmNUL8A6GumybMHE"
 HARDCODED_TG_CHAT_ID = "7420206850"
-HARDCODED_PROXY = "http://127.0.0.1:10808"
+HARDCODED_PROXY = ""
 
 BASE_URL = os.environ.get("FREESTYLE_BASE_URL", "https://api.freestyle.cc.cd").rstrip("/")
-PROXY = os.environ.get("FREESTYLE_PROXY", "").strip() or HARDCODED_PROXY
+PROXY = None
 IMPERSONATE = os.environ.get("FREESTYLE_IMPERSONATE", "chrome136").strip()
 
 # 默认 LinuxDo OAuth（仍允许环境变量覆盖）

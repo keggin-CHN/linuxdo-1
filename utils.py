@@ -373,26 +373,7 @@ class CompatSession:
 
 
 def get_proxy():
-    """获取代理，优先环境变量，其次 Windows 注册表"""
-    proxy = os.environ.get("CDK_PROXY", "")
-    if proxy:
-        return proxy
-    try:
-        import winreg
-        key = winreg.OpenKey(
-            winreg.HKEY_CURRENT_USER,
-            r"Software\Microsoft\Windows\CurrentVersion\Internet Settings",
-        )
-        enable, _ = winreg.QueryValueEx(key, "ProxyEnable")
-        if enable:
-            server, _ = winreg.QueryValueEx(key, "ProxyServer")
-            winreg.CloseKey(key)
-            if server and not server.startswith("http"):
-                server = f"http://{server}"
-            return server
-        winreg.CloseKey(key)
-    except Exception:
-        pass
+    """默认直连：统一不使用代理"""
     return None
 
 

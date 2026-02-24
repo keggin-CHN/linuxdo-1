@@ -16,8 +16,8 @@ from utils import create_session, delay, get_proxy, load_env  # noqa: E402
 REGISTRY_URL = os.environ.get("NAV_REGISTRY_URL", "https://ldcnavi.chatgptuk.workers.dev/shops?limit=300")
 NAV_PAGE_URL = os.environ.get("NAV_PAGE_URL", "https://shop.chatgpt.org.uk/nav")
 
-# 按你当前项目测试习惯，默认走本地 10808 代理
-HARDCODED_PROXY = "http://127.0.0.1:10808"
+# 默认直连（不使用代理）
+HARDCODED_PROXY = ""
 
 # 账号优先环境变量，缺失时回退硬编码（与 shop/签到.py 一致）
 HARDCODED_CDK_USERNAME = "zhou239289001@gmail.com"
@@ -421,7 +421,7 @@ def main():
 
     username = os.environ.get("CDK_USERNAME", "").strip() or HARDCODED_CDK_USERNAME
     password = os.environ.get("CDK_PASSWORD", "").strip() or HARDCODED_CDK_PASSWORD
-    proxy = os.environ.get("CDK_PROXY", "").strip() or HARDCODED_PROXY or get_proxy()
+    proxy = None
 
     if not username or not password:
         raise RuntimeError("缺少 CDK_USERNAME/CDK_PASSWORD")
