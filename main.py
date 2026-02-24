@@ -1,7 +1,7 @@
 """
 LinuxDo 每日任务主运行器
 - 先运行 CDK 登录拿到认证
-- 依次执行: 薄荷 → 测试1 → 慕鸢 → Shop(多站) → NodeLoc → 黑与白(转盘/卡牌/漂流瓶)
+- 依次执行: 薄荷 → 测试1 → 慕鸢 → 佬友公益站 → Shop(多站) → NodeLoc → NodeLoc订阅同步 → 黑与白(转盘/卡牌/漂流瓶)
 - 任何任务出错则跳过，全部结束后重试失败任务（最多5次）
 - 最后汇总推送到 Telegram
 """
@@ -89,6 +89,23 @@ def task_muyuan():
         os.chdir(saved_dir)
 
 
+def task_laoyou_freestyle():
+    """佬友公益站（Freestyle）签到"""
+    saved_dir = os.getcwd()
+    os.chdir(os.path.join(ROOT_DIR, "佬友公益站"))
+    try:
+        sys.path.insert(0, os.path.join(ROOT_DIR, "佬友公益站"))
+        import importlib
+        mod = importlib.import_module("签到")
+        importlib.reload(mod)
+        ok, msg = mod.run()
+        if not ok:
+            raise RuntimeError(msg)
+        return msg
+    finally:
+        os.chdir(saved_dir)
+
+
 def task_shop():
     """Shop 签到"""
     saved_dir = os.getcwd()
@@ -115,6 +132,22 @@ def task_nodeloc():
         mod = importlib.import_module("nodeloc.签到")
         importlib.reload(mod)
         ok, msg = mod.run()
+        if not ok:
+            raise RuntimeError(msg)
+        return msg
+    finally:
+        os.chdir(saved_dir)
+
+
+def task_nodeloc_subscription_push():
+    """NodeLoc 订阅同步推送"""
+    saved_dir = os.getcwd()
+    os.chdir(os.path.join(ROOT_DIR, "nodeloc"))
+    try:
+        import importlib
+        mod = importlib.import_module("nodeloc.subscription_push")
+        importlib.reload(mod)
+        ok, msg = mod.run(send_tg=send_telegram)
         if not ok:
             raise RuntimeError(msg)
         return msg
@@ -178,8 +211,10 @@ TASKS = [
     ("🌿 薄荷", task_bohe),
     ("🧪 测试1", task_test1),
     ("🕊️ 慕鸢", task_muyuan),
+    ("🧭 佬友公益站", task_laoyou_freestyle),
     ("🛍️ Shop", task_shop),
     ("🛰️ NodeLoc", task_nodeloc),
+    ("📡 NodeLoc 订阅同步", task_nodeloc_subscription_push),
     ("🎰 黑与白转盘", task_hyb_wheel),
     ("🃏 黑与白卡牌", task_hyb_cards),
     ("🍾 黑与白漂流瓶", task_hyb_bottle),
