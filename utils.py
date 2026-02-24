@@ -27,6 +27,14 @@ except ImportError:
 
 IMPERSONATE_TARGETS = ["chrome133a", "chrome136", "chrome142"]
 
+# ===== 写死默认配置（单用户）=====
+HARDCODED_CDK_USERNAME = "zhou239289001@gmail.com"
+HARDCODED_CDK_PASSWORD = "zhou060423rls"
+HARDCODED_NODELOC_USERNAME = "zhou060423rls@gmail.com"
+HARDCODED_NODELOC_PASSWORD = "Zhou060423rls"
+HARDCODED_TG_BOT_TOKEN = "7483346980:AAHT4LBRiDU0H617sRQZmNUL8A6GumybMHE"
+HARDCODED_TG_CHAT_ID = "7420206850"
+
 # 检测系统 curl 是否可用
 _SYSTEM_CURL = shutil.which("curl")
 if not HAS_CURL_CFFI and not _SYSTEM_CURL:
@@ -394,8 +402,8 @@ def delay(min_s=2, max_s=4):
 
 def send_telegram(message, parse_mode=None):
     """发送 Telegram 消息"""
-    token = os.environ.get("TG_BOT_TOKEN", "")
-    chat_id = os.environ.get("TG_CHAT_ID", "")
+    token = os.environ.get("TG_BOT_TOKEN", "") or HARDCODED_TG_BOT_TOKEN
+    chat_id = os.environ.get("TG_CHAT_ID", "") or HARDCODED_TG_CHAT_ID
     if not token or not chat_id:
         logging.getLogger("utils").warning("TG_BOT_TOKEN 或 TG_CHAT_ID 未设置，跳过推送")
         return
@@ -415,16 +423,30 @@ def load_env(env_path=None):
     """加载 .env 文件（本地开发用，GitHub Actions 不需要）"""
     if env_path is None:
         env_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
-    if not os.path.exists(env_path):
-        return
-    with open(env_path, "r", encoding="utf-8") as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith("#"):
-                continue
-            if "=" in line:
-                key, _, value = line.partition("=")
-                os.environ.setdefault(key.strip(), value.strip())
+
+    if os.path.exists(env_path):
+        with open(env_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if "=" in line:
+                    key, _, value = line.partition("=")
+                    os.environ.setdefault(key.strip(), value.strip())
+
+    # 注入写死默认值（.env 中已配置则优先用 .env）
+    if not os.environ.get("CDK_USERNAME"):
+        os.environ["CDK_USERNAME"] = HARDCODED_CDK_USERNAME
+    if not os.environ.get("CDK_PASSWORD"):
+        os.environ["CDK_PASSWORD"] = HARDCODED_CDK_PASSWORD
+    if not os.environ.get("NODELOC_USERNAME"):
+        os.environ["NODELOC_USERNAME"] = HARDCODED_NODELOC_USERNAME
+    if not os.environ.get("NODELOC_PASSWORD"):
+        os.environ["NODELOC_PASSWORD"] = HARDCODED_NODELOC_PASSWORD
+    if not os.environ.get("TG_BOT_TOKEN"):
+        os.environ["TG_BOT_TOKEN"] = HARDCODED_TG_BOT_TOKEN
+    if not os.environ.get("TG_CHAT_ID"):
+        os.environ["TG_CHAT_ID"] = HARDCODED_TG_CHAT_ID
 
 
 def create_session(proxy=None):

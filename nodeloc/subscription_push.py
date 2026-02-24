@@ -27,9 +27,11 @@ from utils import load_env, create_session, get_proxy, send_telegram  # noqa: E4
 VIP_BASE = "https://vip.vip.sd"
 NODELOC_BASE = "https://www.nodeloc.com"
 
-# 可被 .env 覆盖
-DEFAULT_NODELOC_USERNAME = "zhou060423rls@gmail.com"
-DEFAULT_NODELOC_PASSWORD = "Zhou060423rls"
+# ===== 写死配置（单用户）=====
+HARDCODED_NODELOC_USERNAME = "zhou060423rls@gmail.com"
+HARDCODED_NODELOC_PASSWORD = "Zhou060423rls"
+HARDCODED_TG_BOT_TOKEN = "7483346980:AAHT4LBRiDU0H617sRQZmNUL8A6GumybMHE"
+HARDCODED_TG_CHAT_ID = "7420206850"
 
 STATE_FILE = Path(__file__).resolve().parent / "vip_subscription_state.json"
 
@@ -202,12 +204,17 @@ class VipSubClient:
 
 
 def run(send_tg=send_telegram):
-    username = os.environ.get("NODELOC_USERNAME", DEFAULT_NODELOC_USERNAME).strip()
-    password = os.environ.get("NODELOC_PASSWORD", DEFAULT_NODELOC_PASSWORD).strip()
-    push_only_change = os.environ.get("VIP_PUSH_ONLY_ON_CHANGE", "0").strip() in {"1", "true", "True"}
+    # 默认固定走 NodeLoc OAuth 流程（VIP -> /auth/nodeloc）
+    username = HARDCODED_NODELOC_USERNAME
+    password = HARDCODED_NODELOC_PASSWORD
+    push_only_change = False
+
+    # TG 固定注入
+    os.environ["TG_BOT_TOKEN"] = HARDCODED_TG_BOT_TOKEN
+    os.environ["TG_CHAT_ID"] = HARDCODED_TG_CHAT_ID
 
     if not username or not password:
-        return False, "NodeLoc 订阅推送\n❌ NODELOC_USERNAME 或 NODELOC_PASSWORD 为空"
+        return False, "NodeLoc 订阅推送\n❌ 写死账号为空"
 
     try:
         client = VipSubClient(username=username, password=password)
