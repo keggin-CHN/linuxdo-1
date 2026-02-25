@@ -1,7 +1,7 @@
 """
 LinuxDo 每日任务主运行器
 - 先运行 CDK 登录拿到认证
-- 依次执行: 薄荷 → 测试1 → 慕鸢 → 佬友公益站 → Shop(多站) → NodeLoc → NodeLoc订阅同步 → 黑与白(转盘/卡牌/漂流瓶)
+- 依次执行: 薄荷 → 测试1 → 慕鸢 → 太子公益站 → 佬友公益站 → Shop(多站) → NodeLoc → NodeLoc订阅同步 → 黑与白(转盘/卡牌/漂流瓶)
 - 任何任务出错则跳过，全部结束后重试失败任务（最多5次）
 - 最后汇总推送到 Telegram
 """
@@ -87,6 +87,27 @@ def task_muyuan():
         return msg
     finally:
         os.chdir(saved_dir)
+
+
+def task_taizi():
+    """太子公益站签到"""
+    import importlib.util
+
+    # 兼容直接调用 task_taizi() 的场景，确保环境变量（含默认账号）已加载
+    load_env()
+
+    module_path = os.path.join(ROOT_DIR, "太子公益站", "签到.py")
+    spec = importlib.util.spec_from_file_location("taizi_gongyizhan_checkin", module_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"无法加载模块: {module_path}")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    # 总任务默认直连（Ubuntu 外网环境不使用 10808 本地代理）
+    ok, msg = mod.run(mode="all", proxy=None)
+    if not ok:
+        raise RuntimeError(msg)
+    return msg
 
 
 def task_laoyou_freestyle():
@@ -211,6 +232,7 @@ TASKS = [
     ("🌿 薄荷", task_bohe),
     ("🧪 测试1", task_test1),
     ("🕊️ 慕鸢", task_muyuan),
+    ("👑 太子公益站", task_taizi),
     ("🧭 佬友公益站", task_laoyou_freestyle),
     ("🛍️ Shop", task_shop),
     ("🛰️ NodeLoc", task_nodeloc),
