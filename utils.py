@@ -381,15 +381,16 @@ def delay(min_s=2, max_s=4):
     time.sleep(random.uniform(min_s, max_s))
 
 
-def send_telegram(message, parse_mode=None):
-    """发送 Telegram 消息"""
+def send_telegram(message, parse_mode=None, proxy=None):
+    """发送 Telegram 消息。proxy 可显式传入，也可通过 TG_PROXY 环境变量配置。"""
     token = os.environ.get("TG_BOT_TOKEN", "") or HARDCODED_TG_BOT_TOKEN
     chat_id = os.environ.get("TG_CHAT_ID", "") or HARDCODED_TG_CHAT_ID
     if not token or not chat_id:
         logging.getLogger("utils").warning("TG_BOT_TOKEN 或 TG_CHAT_ID 未设置，跳过推送")
         return
     url = f"https://api.telegram.org/bot{token}/sendMessage"
-    proxy = get_proxy()
+    if proxy is None:
+        proxy = os.environ.get("TG_PROXY") or get_proxy()
     try:
         payload = {"chat_id": chat_id, "text": message}
         if parse_mode:

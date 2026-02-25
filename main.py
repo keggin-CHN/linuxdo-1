@@ -1,7 +1,7 @@
 """
 LinuxDo 每日任务主运行器
 - 先运行 CDK 登录拿到认证
-- 依次执行: 薄荷 → 测试1 → 慕鸢 → 太子公益站 → 佬友公益站 → Shop(多站) → NodeLoc → NodeLoc订阅同步 → 黑与白(转盘/卡牌/漂流瓶)
+- 依次执行: 薄荷 → 测试1 → 慕鸢 → 太子公益站 → 佬友公益站 → Shop(多站) → NodeLoc → NodeLoc订阅同步 → 黑与白(转盘/卡牌/漂流瓶) → 星野公益站
 - 任何任务出错则跳过，全部结束后重试失败任务（最多5次）
 - 最后汇总推送到 Telegram
 """
@@ -227,6 +227,22 @@ def task_hyb_bottle():
         os.chdir(saved_dir)
 
 
+def task_hoshino():
+    """星野公益站签到"""
+    import importlib.util
+    load_env()
+    module_path = os.path.join(ROOT_DIR, "星野公益站", "签到.py")
+    spec = importlib.util.spec_from_file_location("xingye_gongyizhan_checkin", module_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"无法加载模块: {module_path}")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    ok, msg = mod.run()
+    if not ok:
+        raise RuntimeError(msg)
+    return msg
+
+
 # 任务列表（按执行顺序）
 TASKS = [
     ("🌿 薄荷", task_bohe),
@@ -240,6 +256,7 @@ TASKS = [
     ("🎰 黑与白转盘", task_hyb_wheel),
     ("🃏 黑与白卡牌", task_hyb_cards),
     ("🍾 黑与白漂流瓶", task_hyb_bottle),
+    ("✨ 星野公益站", task_hoshino),
 ]
 
 
