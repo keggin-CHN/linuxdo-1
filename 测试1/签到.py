@@ -160,6 +160,7 @@ class NewApiClient:
                 r = self._get(approve_url, allow_redirects=False)
                 # 继续手动跟踪重定向
                 hop2 = 0
+                loc = ""
                 while r.status_code in (301, 302, 303, 307, 308) and hop2 < 10:
                     hop2 += 1
                     loc = r.headers.get("location", "")
@@ -170,11 +171,15 @@ class NewApiClient:
                         prev = urlparse(approve_url)
                         loc = f"{prev.scheme}://{prev.netloc}{loc}"
                     final_url = loc
+                    # 如果重定向目标是本站 OAuth 回调前端路由，不要请求它
+                    # 请求前端路由会干扰服务器 session 中的 state 绑定，
+                    # 导致后续手动调用 /api/oauth/linuxdo 时 state 不匹配
+                    if BASE_URL in loc and "/oauth/linuxdo" in loc:
+                        log.info(f"  检测到 OAuth 回调前端 URL，跳过请求，直接提取参数")
+                        break
                     delay(0.5, 1)
                     r = self._get(loc, allow_redirects=False)
-                if r.status_code == 200:
-                    final_url = loc if 'loc' in dir() and loc else final_url
-                log.info(f"approve 后: HTTP {r.status_code}, final_url={final_url[:120]}")
+                log.info(f"approve 后: final_url={final_url[:120]}")
 
         code = None
         params = parse_qs(urlparse(final_url).query)
