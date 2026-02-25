@@ -110,11 +110,18 @@ class NewApiClient:
         delay(2, 3)
         r = self._api_get(f"{BASE_URL}/api/oauth/state")
         if r.status_code != 200:
+            log.warning(f"获取 OAuth state 失败: HTTP {r.status_code}, {r.text[:200]}")
             return None
-        data = r.json()
+        try:
+            data = r.json()
+        except Exception:
+            log.warning(f"OAuth state 响应非 JSON: {r.text[:200]}")
+            return None
         if not data.get("success") or not data.get("data"):
+            log.warning(f"OAuth state 响应异常: {data}")
             return None
         state = data["data"]
+        log.info(f"OAuth state 获取成功: {state[:20]}...")
 
         authorize_url = (
             f"https://connect.linux.do/oauth2/authorize?"
@@ -122,43 +129,75 @@ class NewApiClient:
         )
         delay(2, 3)
         r = self._get(authorize_url, allow_redirects=False)
+        log.info(f"authorize 初始: HTTP {r.status_code}")
 
         max_hops = 20
         hop = 0
+        current_url = authorize_url  # 正确跟踪当前 URL，不依赖 r.url
         while r.status_code in (301, 302, 303, 307, 308) and hop < max_hops:
             hop += 1
             location = r.headers.get("location", "")
+            log.info(f"  hop {hop}: {r.status_code} -> {location[:120]}")
+            if not location:
+                break
             if location.startswith("/"):
-                prev = urlparse(str(getattr(r, 'url', authorize_url)))
+                prev = urlparse(current_url)
                 location = f"{prev.scheme}://{prev.netloc}{location}"
+            current_url = location  # 更新当前 URL
             delay(0.5, 1)
             r = self._get(location, allow_redirects=False)
 
-        final_url = str(getattr(r, 'url', '') or '')
+        # 用跟踪的 current_url 作为 final_url，不依赖 r.url（r.url 在 allow_redirects=False 时为请求 URL）
+        final_url = current_url
+        log.info(f"重定向结束: HTTP {r.status_code}, final_url={final_url[:120]}")
 
         if r.status_code == 200 and "connect.linux.do" in final_url:
             approve = re.search(r'href="(/oauth2/approve/[^"]+)"', r.text)
             if approve:
+                approve_url = f"https://connect.linux.do{approve.group(1)}"
+                log.info(f"发现 approve 链接，跟随: {approve_url[:80]}")
                 delay(1, 2)
-                r = self._get(f"https://connect.linux.do{approve.group(1)}", allow_redirects=True)
-                final_url = str(getattr(r, 'url', '') or '')
+                r = self._get(approve_url, allow_redirects=False)
+                # 继续手动跟踪重定向
+                hop2 = 0
+                while r.status_code in (301, 302, 303, 307, 308) and hop2 < 10:
+                    hop2 += 1
+                    loc = r.headers.get("location", "")
+                    log.info(f"  approve hop {hop2}: {r.status_code} -> {loc[:120]}")
+                    if not loc:
+                        break
+                    if loc.startswith("/"):
+                        prev = urlparse(approve_url)
+                        loc = f"{prev.scheme}://{prev.netloc}{loc}"
+                    final_url = loc
+                    delay(0.5, 1)
+                    r = self._get(loc, allow_redirects=False)
+                if r.status_code == 200:
+                    final_url = loc if 'loc' in dir() and loc else final_url
+                log.info(f"approve 后: HTTP {r.status_code}, final_url={final_url[:120]}")
 
         code = None
         params = parse_qs(urlparse(final_url).query)
         if 'code' in params:
             code = params['code'][0]
+            log.info(f"从 URL 提取到 code: {code[:20]}...")
         if not code and r.status_code == 200:
-            m = re.search(r'[?&]code=([^&"]+)', r.text or '')
+            m = re.search(r'[?&]code=([^&"\']+)', r.text or '')
             if m:
                 code = m.group(1)
+                log.info(f"从 body 提取到 code: {code[:20]}...")
         if not code:
+            log.warning(f"未能提取 code，final_url={final_url[:200]}, body={r.text[:300]}")
             return None
 
         delay(2, 3)
+        log.info(f"调用 OAuth 回调接口: code={code[:20]}...")
         r = self._get(f"{BASE_URL}/api/oauth/linuxdo", params={"code": code, "state": state})
+        log.info(f"OAuth 回调: HTTP {r.status_code}, body={r.text[:300]}")
         try:
             return r.json()
         except Exception:
+            log.warning(f"OAuth 回调响应非 JSON: {r.text[:300]}")
             return None
 
     def extract_login_info(self, data):
@@ -264,12 +303,15 @@ def run():
 
     data = client.oauth_login()
     if not data:
-        return False, "🧪 测试1签到\n❌ OAuth 登录失败"
+        return False, "🧪 测试1签到\n❌ OAuth 登录失败 (code 获取失败)"
 
+    log.info(f"OAuth 回调数据: {str(data)[:300]}")
     user_data = client.extract_login_info(data)
+    log.info(f"extract_login_info 结果: {str(user_data)[:200]}")
     user = client.verify_login()
+    log.info(f"verify_login 结果: {str(user)[:200]}")
     if not user and not user_data:
-        return False, "🧪 测试1签到\n❌ 登录失败 - 无法验证身份"
+        return False, f"🧪 测试1签到\n❌ 登录失败 - OAuth回调数据: {str(data)[:200]}"
     if not user:
         user = user_data
 

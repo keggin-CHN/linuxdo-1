@@ -15,9 +15,15 @@ def run():
     username = user.get("name", "未知")
 
     r = session.get(f"{BASE_URL}/api/wheel", proxy=proxy, timeout=15)
-    data = r.json()
+    log.info(f"转盘状态接口: HTTP {r.status_code}, body={r.text[:300]}")
+    try:
+        data = r.json()
+    except Exception as e:
+        msg = f"🎰 黑与白转盘\n❌ 获取转盘信息失败 (解析错误: {e})\nHTTP {r.status_code}\n用户: {username}"
+        return False, msg
     if not data.get("success"):
-        msg = f"🎰 黑与白转盘\n❌ 获取转盘信息失败\n用户: {username}"
+        err = data.get("error") or data.get("message") or str(data)[:200]
+        msg = f"🎰 黑与白转盘\n❌ 获取转盘信息失败\n原因: {err}\n用户: {username}"
         return False, msg
 
     info = data["data"]

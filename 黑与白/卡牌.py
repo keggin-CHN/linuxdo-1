@@ -15,9 +15,14 @@ def run():
     username = user.get("name", "未知")
 
     r = session.get(f"{BASE_URL}/api/cards/draw/status", proxy=proxy, timeout=15)
-    data = r.json()
+    log.info(f"抽卡状态接口: HTTP {r.status_code}, body={r.text[:300]}")
+    try:
+        data = r.json()
+    except Exception as e:
+        return False, f"🃏 黑与白卡牌\n❌ 获取抽卡状态失败 (解析错误: {e})\nHTTP {r.status_code}\n用户: {username}"
     if not data.get("success"):
-        return False, f"🃏 黑与白卡牌\n❌ 获取抽卡状态失败\n用户: {username}"
+        err = data.get("error") or data.get("message") or str(data)[:200]
+        return False, f"🃏 黑与白卡牌\n❌ 获取抽卡状态失败\n原因: {err}\n用户: {username}"
 
     limits = data.get("limits", {})
     free_remaining = limits.get("freeRemaining", 0)
